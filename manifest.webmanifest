@@ -1,7 +1,7 @@
 {
-  "name": "우리 용돈기입장",
-  "short_name": "용돈기입장",
-  "description": "부부가 함께 쓰는 공유 용돈기입장",
+  "name": "우나네 가게부",
+  "short_name": "우나네 가게부",
+  "description": "우나네 가게부",
   "lang": "ko",
   "start_url": "./index.html",
   "scope": "./",
