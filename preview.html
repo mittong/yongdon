@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>용돈기입장 · 폰 미리보기</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:#e3ebe8;color:#1c2333;display:flex;flex-direction:column;align-items:center;
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;padding:14px 12px 6px}
+  select,button{font:inherit;padding:8px 12px;border-radius:10px;border:1px solid #cdd3e0;background:#fff;cursor:pointer}
+  button:hover{background:#f3f5fa}
+  .live{font-size:13px;color:#12a05c;padding:0 6px}
+  .live.off{color:#999}
+  .stage{padding:10px 0 30px}
+  .phone{background:#0d111b;border-radius:46px;padding:14px;box-shadow:0 20px 50px rgba(20,30,60,.35);position:relative}
+  iframe{display:block;border:0;border-radius:34px;background:#fff}
+  .hint{font-size:12px;color:#6b7488;margin-bottom:24px;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+  <div class="bar">
+    <select id="dev">
+      <option value="393x852">iPhone 15 (393×852)</option>
+      <option value="360x780">갤럭시 S (360×780)</option>
+      <option value="375x667">iPhone SE (375×667)</option>
+      <option value="412x915">갤럭시 S Ultra (412×915)</option>
+    </select>
+    <select id="theme">
+      <option value="light">밝은 화면</option>
+      <option value="dark">어두운 화면</option>
+    </select>
+    <button id="reload">새로고침</button>
+    <button id="clear">체험 데이터 지우기</button>
+    <label class="live" id="live"><input type="checkbox" id="auto" checked> 파일 저장하면 자동 새로고침</label>
+  </div>
+  <div class="stage"><div class="phone"><iframe id="f" src="index.html" title="앱 미리보기"></iframe></div></div>
+  <div class="hint">
+    index.html을 고치고 저장하면 이 화면이 자동으로 바뀌어요.<br>
+    '어두운 화면'은 폰의 다크모드 모양을 보는 용도예요. (실제 폰에서는 폰 설정을 따라가요)
+  </div>
+
+<script>
+const f = document.getElementById('f');
+const dev = document.getElementById('dev');
+const theme = document.getElementById('theme');
+
+function size() {
+  const [w, h] = dev.value.split('x').map(Number);
+  // 화면 높이보다 크면 비율을 유지하며 줄여서 맞춤
+  const maxH = window.innerHeight - 150;
+  const scale = Math.min(1, maxH / (h + 28));
+  f.style.width = w + 'px'; f.style.height = h + 'px';
+  const phone = f.parentElement;
+  phone.style.transformOrigin = 'top center';
+  phone.style.transform = `scale(${scale})`;
+  phone.parentElement.style.height = (h + 28) * scale + 40 + 'px';
+  localStorage.setItem('preview-dev', dev.value);
+}
+function applyTheme() {
+  // 앱 안의 prefers-color-scheme 대신 CSS 변수를 직접 덮어써서 다크모드 모양 확인
+  try {
+    const d = f.contentDocument; if (!d) return;
+    let st = d.getElementById('__previewTheme');
+    if (!st) { st = d.createElement('style'); st.id = '__previewTheme'; d.head.appendChild(st); }
+    d.documentElement.setAttribute('data-theme', theme.value);
+  } catch (e) { }
+}
+dev.value = localStorage.getItem('preview-dev') || dev.value;
+dev.onchange = size; theme.onchange = applyTheme;
+window.addEventListener('resize', size);
+f.addEventListener('load', applyTheme);
+size();
+
+document.getElementById('reload').onclick = () => f.contentWindow.location.reload();
+document.getElementById('clear').onclick = () => {
+  if (!confirm('미리보기에 입력해 둔 체험 데이터를 모두 지울까요?')) return;
+  try { f.contentWindow.localStorage.clear(); } catch (e) { }
+  f.contentWindow.location.reload();
+};
+
+// 파일이 바뀌면 자동 새로고침 (index.html, firebase-config.js 를 1초마다 확인)
+const watch = ['index.html', 'firebase-config.js'];
+const last = {};
+async function poll() {
+  if (!document.getElementById('auto').checked) return;
+  try {
+    for (const name of watch) {
+      const t = await (await fetch(name + '?_=' + Date.now(), { cache: 'no-store' })).text();
+      if (last[name] !== undefined && last[name] !== t) { f.contentWindow.location.reload(); }
+      last[name] = t;
+    }
+    document.getElementById('live').classList.remove('off');
+  } catch (e) { document.getElementById('live').classList.add('off'); }
+}
+setInterval(poll, 1000); poll();
+</script>
+</body>
+</html>
