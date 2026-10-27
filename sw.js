@@ -1,6 +1,6 @@
 // 화면 파일을 폰에 저장해 두어 오프라인에서도 열리게 하는 서비스워커.
 // 항상 인터넷을 먼저 시도하고(최신 버전 유지), 안 되면 저장본을 사용합니다.
-const CACHE = 'yongdon-v6';
+const CACHE = 'yongdon-v7';
 const SHELL = ['./', './index.html', './firebase-config.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png'];
 
