@@ -284,6 +284,11 @@ small{font-size:.66em;font-weight:500;opacity:.72;margin-left:1px}
 .sum-card .last b{font-family:var(--f-ui);color:var(--text)}
 mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
 .srch .list .row{border-bottom:1px solid var(--line)}
+
+/* 메모 자동완성 */
+.msug{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.msug button{padding:7px 13px;border-radius:99px;background:var(--accent-bg);color:var(--text);font-family:var(--f-ui);font-size:14px;font-weight:600}
+.msug button i{font-style:normal;font-weight:500;font-size:11px;color:var(--sub);margin-left:5px}
 </style>
 </head>
 <body>
@@ -405,7 +410,8 @@ mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
       <div class="field"><label>날짜</label><input class="inp" id="fDate" type="date" required></div>
     </div>
     <div class="field hidden" id="fCatNewBox"><label>새 항목 이름</label><input class="inp" id="fCatNew" maxlength="10" placeholder="예: 병원비, 반려동물"></div>
-    <div class="field"><label>메모 (선택)</label><input class="inp" id="fMemo" maxlength="40" placeholder="예: 점심 김치찌개"></div>
+    <div class="field"><label>메모 (선택)</label><input class="inp" id="fMemo" maxlength="40" placeholder="예: 점심 김치찌개">
+      <div class="msug hidden" id="fMemoSug"></div></div>
     <div class="btns">
       <button type="button" class="btn ghost" id="fCancel">취소</button>
       <button type="submit" class="btn">저장</button>
@@ -430,7 +436,8 @@ mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
       <div class="field"><label>매월 몇 일?</label><select class="inp" id="rDay"></select></div>
     </div>
     <div class="field hidden" id="rCatNewBox"><label>새 항목 이름</label><input class="inp" id="rCatNew" maxlength="10" placeholder="예: 병원비, 반려동물"></div>
-    <div class="field"><label>메모 (선택)</label><input class="inp" id="rMemo" maxlength="40" placeholder="예: 월세, 넷플릭스"></div>
+    <div class="field"><label>메모 (선택)</label><input class="inp" id="rMemo" maxlength="40" placeholder="예: 월세, 넷플릭스">
+      <div class="msug hidden" id="rMemoSug"></div></div>
     <div class="field"><label>시작하는 달</label><input class="inp" id="rStart" type="month" required></div>
     <div class="note" style="margin:-4px 0 14px">시작하는 달의 날짜가 이미 지났다면 바로 한 번 들어가요. 31일처럼 없는 날은 그 달 마지막 날로 들어가요.</div>
     <div class="btns">
@@ -1048,6 +1055,40 @@ function closeSearch() {
   $('#sPage').classList.add('hidden'); $('#sInp').value = ''; $('#sInp').blur();
 }
 
+/* ───────── 메모 자동완성 ───────── */
+// 이전에 적은 메모 중에서, 친 글자(초성 포함)로 시작하는 것을 자주 쓴 순서로 보여줘요. 같은 구분(지출/수입)만 보여줘요.
+function memoCandidates(q, type) {
+  const map = new Map();
+  [...state.entries, ...state.rec].forEach(e => {
+    const m = (e.memo || '').trim(); if (!m || (e.type || 'expense') !== type) return;
+    const k = normS(m), g = map.get(k) || { m, n: 0, d: '' };
+    g.n++; const d = e.date || ''; if (d >= g.d) { g.d = d; g.m = m; }
+    map.set(k, g);
+  });
+  const nq = normS(q), all = [...map.values()].sort((a, b) => b.n - a.n || b.d.localeCompare(a.d));
+  if (!nq) return all.slice(0, 6);
+  const hc = t => isCho(nq) ? choOf(normS(t)) : normS(t);
+  const pre = all.filter(g => hc(g.m).startsWith(nq)), rest = all.filter(g => !hc(g.m).startsWith(nq) && hc(g.m).includes(nq));
+  return [...pre, ...rest].filter(g => normS(g.m) !== nq).slice(0, 6);
+}
+function wireMemoSuggest(p, typeId) {
+  const inp = $(`#${p}Memo`), box = $(`#${p}MemoSug`);
+  const show = () => {
+    const list = memoCandidates(inp.value, getSeg(typeId) || 'expense');
+    box.innerHTML = list.map(g => `<button type="button" data-m="${esc(g.m)}">${esc(g.m)}${g.n > 1 ? `<i>${g.n}회</i>` : ''}</button>`).join('');
+    box.classList.toggle('hidden', !list.length);
+    if (list.length) box.scrollIntoView({ block: 'nearest' });
+  };
+  inp.addEventListener('input', show);
+  inp.addEventListener('focus', show);
+  inp.addEventListener('blur', () => setTimeout(() => box.classList.add('hidden'), 180));
+  box.addEventListener('pointerdown', e => e.preventDefault());   // 눌러도 키보드가 안 내려가게
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-m]'); if (!b) return;
+    inp.value = b.dataset.m; box.classList.add('hidden');
+  });
+}
+
 /* ───────── 기타 ───────── */
 let toastTimer;
 function toast(msg) {
@@ -1192,6 +1233,7 @@ function askWho() {
 /* ───────── 이벤트 ───────── */
 $('#prevM').onclick = () => shiftMonth(-1);
 $('#nextM').onclick = () => shiftMonth(1);
+wireMemoSuggest('f', '#fType'); wireMemoSuggest('r', '#rType');
 $('#srchBtn').onclick = openSearch;
 $('#sBack').onclick = closeSearch;
 $('#sInp').addEventListener('input', renderSearch);
