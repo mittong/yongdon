@@ -292,6 +292,17 @@ mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
 .msug button:active{background:var(--accent-bg)}
 .msug button span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .msug button i{font-style:normal;font-weight:500;font-size:12px;color:var(--sub);flex:none}
+
+/* 항목 고르기 */
+.sr{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;overflow:hidden}
+.pickbtn{display:flex;align-items:center;justify-content:space-between;gap:6px;text-align:left;min-height:48px;font-weight:500}
+.pickbtn::after{content:"";width:8px;height:8px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(45deg) translateY(-2px);flex:none;margin-right:2px}
+.pk-list{max-height:62dvh;overflow-y:auto;border-radius:16px;background:var(--field)}
+.pk-i{display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;text-align:left;font-family:var(--f-ui);font-size:16px;font-weight:500;border-bottom:1px solid var(--line)}
+.pk-i:last-child{border-bottom:0}
+.pk-i.new{color:var(--accent);font-weight:700}
+.pk-i.on{background:var(--accent-bg);font-weight:700}
+.pk-i b{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -409,7 +420,7 @@ mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
       <div class="note" id="fAccNote" style="margin-top:6px">공동생활비를 고르지 않으면 내 용돈으로 기록돼요.</div></div>
     <div class="field"><label>금액</label><input class="inp" id="fAmt" inputmode="numeric" placeholder="0" required></div>
     <div class="two">
-      <div class="field"><label>항목</label><select class="inp" id="fCat"></select></div>
+      <div class="field"><label>항목</label><button type="button" class="inp pickbtn" id="fCatBtn" aria-haspopup="listbox"></button><select class="sr" id="fCat" tabindex="-1" aria-hidden="true"></select></div>
       <div class="field"><label>날짜</label><input class="inp" id="fDate" type="date" required></div>
     </div>
     <div class="field hidden" id="fCatNewBox"><label>새 항목 이름</label><input class="inp" id="fCatNew" maxlength="10" placeholder="예: 병원비, 반려동물"></div>
@@ -435,7 +446,7 @@ mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
       <div class="note" id="rAccNote" style="margin-top:6px">공동생활비를 고르지 않으면 내 용돈으로 기록돼요.</div></div>
     <div class="field"><label>금액</label><input class="inp" id="rAmt" inputmode="numeric" placeholder="0" required></div>
     <div class="two">
-      <div class="field"><label>항목</label><select class="inp" id="rCat"></select></div>
+      <div class="field"><label>항목</label><button type="button" class="inp pickbtn" id="rCatBtn" aria-haspopup="listbox"></button><select class="sr" id="rCat" tabindex="-1" aria-hidden="true"></select></div>
       <div class="field"><label>매월 몇 일?</label><select class="inp" id="rDay"></select></div>
     </div>
     <div class="field hidden" id="rCatNewBox"><label>새 항목 이름</label><input class="inp" id="rCatNew" maxlength="10" placeholder="예: 병원비, 반려동물"></div>
@@ -460,6 +471,14 @@ mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
     <h2>이 폰은 누구 거예요?</h2>
     <div class="note" style="margin:-8px 0 14px">처음 한 번만 고르면 돼요. 설정에서 바꿀 수 있어요.</div>
     <div class="btns" id="whoBtns"></div>
+  </div>
+</div>
+
+<!-- 항목 고르기 -->
+<div class="mask hidden" id="pkMask" style="z-index:50">
+  <div class="sheet" role="listbox" aria-label="항목 선택">
+    <h2 id="pkTitle">항목 선택</h2>
+    <div class="pk-list" id="pkList"></div>
   </div>
 </div>
 
@@ -789,6 +808,7 @@ function fillCats(type, selected, target = '#fCat') {
   $(target).innerHTML = cats.map(c => `<option ${c === selected ? 'selected' : ''}>${esc(c)}</option>`).join('') +
     '<option value="__new">＋ 직접 입력…</option>';
   const p = target.slice(1, 2);
+  syncPick(p);
   $(`#${p}CatNew`).value = ''; $(`#${p}CatNewBox`).classList.add('hidden');
 }
 function toggleNewCat(p) {
@@ -1092,6 +1112,22 @@ function wireMemoSuggest(p, typeId) {
   });
 }
 
+/* ───────── 항목 고르기 (목록은 항상 처음부터, 고른 항목에는 표시만) ───────── */
+function syncPick(p) {
+  const sel = $(`#${p}Cat`), o = sel.options[sel.selectedIndex];
+  $(`#${p}CatBtn`).textContent = o ? o.text : '';
+}
+let pkFor = null;
+function openPick(p) {
+  pkFor = p;
+  const sel = $(`#${p}Cat`);
+  $('#pkList').innerHTML = [...sel.options].map((o, i) =>
+    `<button type="button" class="pk-i${i === sel.selectedIndex ? ' on' : ''}${o.value === '__new' ? ' new' : ''}" data-i="${i}" role="option"><span>${esc(o.text)}</span>${i === sel.selectedIndex ? '<b>✓</b>' : ''}</button>`).join('');
+  $('#pkMask').classList.remove('hidden');
+  $('#pkList').scrollTop = 0;
+}
+const closePick = () => $('#pkMask').classList.add('hidden');
+
 /* ───────── 기타 ───────── */
 let toastTimer;
 function toast(msg) {
@@ -1236,6 +1272,14 @@ function askWho() {
 /* ───────── 이벤트 ───────── */
 $('#prevM').onclick = () => shiftMonth(-1);
 $('#nextM').onclick = () => shiftMonth(1);
+$('#fCatBtn').onclick = () => openPick('f');
+$('#rCatBtn').onclick = () => openPick('r');
+$('#pkMask').addEventListener('click', e => {
+  if (e.target === $('#pkMask')) return closePick();
+  const b = e.target.closest('[data-i]'); if (!b || !pkFor) return;
+  const sel = $(`#${pkFor}Cat`); sel.selectedIndex = +b.dataset.i;
+  syncPick(pkFor); sel.dispatchEvent(new Event('change')); closePick();
+});
 wireMemoSuggest('f', '#fType'); wireMemoSuggest('r', '#rType');
 $('#srchBtn').onclick = openSearch;
 $('#sBack').onclick = closeSearch;
