@@ -285,28 +285,18 @@ small{font-size:.66em;font-weight:500;opacity:.72;margin-left:1px}
 mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
 .srch .list .row{border-bottom:1px solid var(--line)}
 
-/* 메모 자동완성 (입력칸 아래로 세로 목록) */
-.msug{display:block;margin-top:6px;background:var(--card);border:1.5px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
-.msug button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:12px 15px;text-align:left;border-bottom:1px solid var(--line);font-family:var(--f-ui);font-size:15px;font-weight:500;color:var(--text)}
+/* 메모 자동완성: 입력칸 위/아래로 떠 있는 세로 목록 (아래 버튼이 밀리지 않아요) */
+.msug{position:absolute;left:0;right:0;z-index:6;display:flex;flex-direction:column;background:var(--card);border:1.5px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(7,25,23,.2);animation:msugIn .14s ease-out}
+.msug.up{flex-direction:column-reverse}
+@keyframes msugIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.msug button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:12px 15px;text-align:left;border-bottom:1px solid var(--line);font-family:var(--f-ui);font-size:15px;font-weight:500;color:var(--text);flex:none}
 .msug button:last-child{border-bottom:0}
+.msug.up button:last-child{border-bottom:1px solid var(--line)}
+.msug.up button:first-child{border-bottom:0}
 .msug button:active{background:var(--accent-bg)}
 .msug button span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .msug button i{font-style:normal;font-weight:500;font-size:12px;color:var(--sub);flex:none}
-
-/* 항목 고르기 */
-.sr{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;overflow:hidden}
-.pickbtn{display:flex;align-items:center;justify-content:space-between;gap:6px;text-align:left;min-height:48px;font-weight:500}
-.pickbtn::after{content:"";width:8px;height:8px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(45deg) translateY(-2px);flex:none;margin-right:2px}
-.pk-list{max-height:62dvh;overflow-y:auto;border-radius:16px;background:var(--field)}
-.pk-i{display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px 16px;text-align:left;font-family:var(--f-ui);font-size:16px;font-weight:500;border-bottom:1px solid var(--line)}
-.pk-i:last-child{border-bottom:0}
-.pk-i.new{color:var(--accent);font-weight:700}
-.pk-i.on{background:var(--accent-bg);font-weight:700}
-.pk-i b{color:var(--accent)}
-
-/* 아래로 당겨도 새로고침 안 되게 / 창을 아래로 밀어서 닫기 */
-.sheet,.srch-body,.pk-list{overscroll-behavior:contain}
-.sheet{will-change:transform}
+@media (prefers-reduced-motion: reduce){.msug{animation:none}}
 </style>
 </head>
 <body>
@@ -1093,18 +1083,28 @@ function memoCandidates(q, type) {
     map.set(k, g);
   });
   const nq = normS(q), all = [...map.values()].sort((a, b) => b.n - a.n || b.d.localeCompare(a.d));
-  if (!nq) return all.slice(0, 6);
+  if (!nq) return all.slice(0, 4);
   const hc = t => isCho(nq) ? choOf(normS(t)) : normS(t);
   const pre = all.filter(g => hc(g.m).startsWith(nq)), rest = all.filter(g => !hc(g.m).startsWith(nq) && hc(g.m).includes(nq));
-  return [...pre, ...rest].filter(g => normS(g.m) !== nq).slice(0, 6);
+  return [...pre, ...rest].filter(g => normS(g.m) !== nq).slice(0, 4);
 }
 function wireMemoSuggest(p, typeId) {
   const inp = $(`#${p}Memo`), box = $(`#${p}MemoSug`);
+  inp.parentElement.style.position = 'relative';
   const show = () => {
     const list = memoCandidates(inp.value, getSeg(typeId) || 'expense');
+    const wasHidden = box.classList.contains('hidden');
     box.innerHTML = list.map(g => `<button type="button" data-m="${esc(g.m)}"><span>${esc(g.m)}</span>${g.n > 1 ? `<i>${g.n}회</i>` : ''}</button>`).join('');
     box.classList.toggle('hidden', !list.length);
-    if (list.length) box.scrollIntoView({ block: 'nearest' });
+    if (!list.length) return;
+    // 아래 공간이 모자라면 입력칸 위로 펼쳐요 (가장 자주 쓴 게 입력칸 바로 위에 와요)
+    const sheetBottom = Math.min(inp.closest('.sheet').getBoundingClientRect().bottom, (window.visualViewport || window).height || innerHeight);
+    const below = sheetBottom - inp.getBoundingClientRect().bottom - 8;
+    const up = box.offsetHeight > below;
+    box.classList.toggle('up', up);
+    if (up) { box.style.top = ''; box.style.bottom = (inp.parentElement.offsetHeight - inp.offsetTop + 4) + 'px'; }
+    else { box.style.bottom = ''; box.style.top = (inp.offsetTop + inp.offsetHeight + 4) + 'px'; }
+    if (!wasHidden) box.style.animation = 'none'; else box.style.animation = '';   // 처음 나타날 때만 살짝 부드럽게
   };
   inp.addEventListener('input', show);
   inp.addEventListener('focus', show);
