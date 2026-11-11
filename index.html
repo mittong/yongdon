@@ -1107,6 +1107,7 @@ function wireMemoSuggest(p, typeId) {
   const inp = $(`#${p}Memo`), box = $(`#${p}MemoSug`);
   inp.parentElement.style.position = 'relative';
   const show = () => {
+    clearTimeout(blurT);
     const list = memoCandidates(inp.value, getSeg(typeId) || 'expense');
     const wasHidden = box.classList.contains('hidden');
     box.innerHTML = list.map(g => `<button type="button" data-m="${esc(g.m)}"><span>${esc(g.m)}</span>${g.n > 1 ? `<i>${g.n}회</i>` : ''}</button>`).join('');
@@ -1123,7 +1124,9 @@ function wireMemoSuggest(p, typeId) {
   };
   inp.addEventListener('input', show);
   inp.addEventListener('focus', show);
-  inp.addEventListener('blur', () => setTimeout(() => box.classList.add('hidden'), 180));
+  let blurT = null;
+  inp.addEventListener('blur', () => { clearTimeout(blurT); blurT = setTimeout(() => box.classList.add('hidden'), 180); });
+  inp.addEventListener('focus', () => clearTimeout(blurT));
   box.addEventListener('pointerdown', e => e.preventDefault());   // 눌러도 키보드가 안 내려가게
   box.addEventListener('click', e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
@@ -1150,7 +1153,9 @@ const closePick = () => $('#pkMask').classList.add('hidden');
 /* ───────── 뒤로가기 / 아래로 밀어서 닫기 ───────── */
 // 입력창·항목 목록·검색 화면이 열려 있을 때 폰의 뒤로가기를 누르면 앱이 꺼지지 않고 그 창만 닫혀요.
 const OVS = [['pk', '#pkMask', () => closePick()], ['rec', '#rmask', () => $('#rCancel').click()], ['form', '#mask', () => $('#fCancel').click()], ['srch', '#sPage', () => closeSearch()]];
-let silentBack = 0;
+let silentBack = 0, silentTimer = null;
+const silentFwd = () => { try { silentBack++; history.forward(); armSilent(); } catch { silentBack = 0; } };
+const armSilent = () => { clearTimeout(silentTimer); silentTimer = setTimeout(() => { silentBack = 0; }, 700); };
 const ovOpen = sel => !$(sel).classList.contains('hidden');
 function watchOverlays() {
   try { history.replaceState(null, ''); } catch { return; }   // 미리보기처럼 기록을 못 쓰는 곳에서는 건너뛰어요
@@ -1161,7 +1166,7 @@ function watchOverlays() {
       if (now === was) return; was = now;
       try {
         if (now) history.pushState({ ov: name }, '');
-        else if (history.state && history.state.ov === name) { silentBack++; history.back(); }
+        else if (history.state && history.state.ov === name) { silentBack++; history.back(); armSilent(); }
       } catch { }
     }).observe($(sel), { attributes: true, attributeFilter: ['class'] });
   });
@@ -1170,7 +1175,7 @@ function watchOverlays() {
     const top = OVS.find(([, sel]) => ovOpen(sel));
     // 메모 자동완성 목록이 떠 있으면 입력창은 그대로 두고 목록만 먼저 닫아요
     const sug = [...document.querySelectorAll('.msug')].find(b => !b.classList.contains('hidden'));
-    if (sug && top) { sug.classList.add('hidden'); try { history.pushState({ ov: top[0] }, ''); } catch { } return; }
+    if (sug && top) { sug.classList.add('hidden'); silentFwd(); return; }
     if (top) top[2]();
   });
 }
