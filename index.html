@@ -1189,7 +1189,7 @@ function toast(msg) {
 }
 
 /* ───────── 스와이프 삭제 ───────── */
-const SW_OPEN = 96, SW_FULL = 170;
+const SW_OPEN = 96;   // 밀면 삭제 버튼만 나오고, 버튼을 눌러야 지워져요 (끝까지 밀어도 자동 삭제 없음)
 let openSwp = null, swipeJust = false;
 function setSwp(el, x, anim) {
   const row = el.querySelector('.row');
@@ -1259,7 +1259,7 @@ function attachSwipe(box) {
       else if (Math.abs(dy) > 10) { st = null; return; }
       else return;
     }
-    setSwp(st.sw, Math.max(-SW_FULL - 40, Math.min(SW_FULL + 40, st.base + dx)), false);
+    setSwp(st.sw, Math.max(-SW_OPEN - 28, Math.min(SW_OPEN + 28, st.base + dx)), false);
   });
   const end = e => {
     if (!st || e.pointerId !== st.id) return;
@@ -1267,8 +1267,7 @@ function attachSwipe(box) {
     if (!dragging) return;
     swipeJust = true; setTimeout(() => { swipeJust = false; }, 350);
     const x = sw._x || 0, ax = Math.abs(x);
-    if (ax >= SW_FULL) { setSwp(sw, x > 0 ? 400 : -400, true); removeEntry(sw.querySelector('.row').dataset.id); }
-    else if (ax >= SW_OPEN * 0.5) { setSwp(sw, x > 0 ? SW_OPEN : -SW_OPEN, true); openSwp = sw; }
+    if (ax >= SW_OPEN * 0.5) { setSwp(sw, x > 0 ? SW_OPEN : -SW_OPEN, true); openSwp = sw; }
     else { setSwp(sw, 0, true); if (openSwp === sw) openSwp = null; }
   };
   box.addEventListener('pointerup', end);
