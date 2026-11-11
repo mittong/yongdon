@@ -53,7 +53,7 @@
   --nav-bg:rgba(19,33,31,.92); --shadow:0 8px 24px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--f-body);font-size:16px;line-height:1.45}
+html,body{overscroll-behavior-y:contain;margin:0;background:var(--bg);color:var(--text);font-family:var(--f-body);font-size:16px;line-height:1.45}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 small{font-size:.66em;font-weight:500;opacity:.72;margin-left:1px}
@@ -303,6 +303,10 @@ mark{background:var(--accent-bg);color:inherit;border-radius:4px;padding:0 1px}
 .pk-i.new{color:var(--accent);font-weight:700}
 .pk-i.on{background:var(--accent-bg);font-weight:700}
 .pk-i b{color:var(--accent)}
+
+/* 아래로 당겨도 새로고침 안 되게 / 창을 아래로 밀어서 닫기 */
+.sheet,.srch-body,.pk-list{overscroll-behavior:contain}
+.sheet{will-change:transform}
 </style>
 </head>
 <body>
@@ -1128,6 +1132,55 @@ function openPick(p) {
 }
 const closePick = () => $('#pkMask').classList.add('hidden');
 
+/* ───────── 뒤로가기 / 아래로 밀어서 닫기 ───────── */
+// 입력창·항목 목록·검색 화면이 열려 있을 때 폰의 뒤로가기를 누르면 앱이 꺼지지 않고 그 창만 닫혀요.
+const OVS = [['pk', '#pkMask', () => closePick()], ['rec', '#rmask', () => $('#rCancel').click()], ['form', '#mask', () => $('#fCancel').click()], ['srch', '#sPage', () => closeSearch()]];
+let silentBack = 0;
+const ovOpen = sel => !$(sel).classList.contains('hidden');
+function watchOverlays() {
+  try { history.replaceState(null, ''); } catch { return; }   // 미리보기처럼 기록을 못 쓰는 곳에서는 건너뛰어요
+  OVS.forEach(([name, sel]) => {
+    let was = ovOpen(sel);
+    new MutationObserver(() => {
+      const now = ovOpen(sel);
+      if (now === was) return; was = now;
+      try {
+        if (now) history.pushState({ ov: name }, '');
+        else if (history.state && history.state.ov === name) { silentBack++; history.back(); }
+      } catch { }
+    }).observe($(sel), { attributes: true, attributeFilter: ['class'] });
+  });
+  window.addEventListener('popstate', () => {
+    if (silentBack > 0) { silentBack--; return; }
+    const top = OVS.find(([, sel]) => ovOpen(sel));
+    if (top) top[2]();
+  });
+}
+function sheetDrag(sheet, close) {
+  let y0 = null, dy = 0, on = false;
+  sheet.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) { y0 = null; return; }
+    const pl = e.target.closest && e.target.closest('.pk-list');
+    y0 = (sheet.scrollTop > 0 || (pl && pl.scrollTop > 0)) ? null : e.touches[0].clientY; dy = 0; on = false;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', e => {
+    if (y0 == null) return;
+    dy = e.touches[0].clientY - y0;
+    if (!on) { if (dy > 10) { on = true; sheet.style.transition = 'none'; } else if (dy < -10) { y0 = null; return; } else return; }
+    e.preventDefault();
+    sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
+  }, { passive: false });
+  const end = () => {
+    if (y0 == null) return;
+    const go = on && dy > 110; y0 = null;
+    if (!on) return;
+    sheet.style.transition = 'transform .18s ease-out';
+    if (go) { sheet.style.transform = 'translateY(100%)'; setTimeout(() => { close(); sheet.style.transition = ''; sheet.style.transform = ''; }, 160); }
+    else { sheet.style.transform = ''; setTimeout(() => { sheet.style.transition = ''; }, 200); }
+  };
+  sheet.addEventListener('touchend', end); sheet.addEventListener('touchcancel', end);
+}
+
 /* ───────── 기타 ───────── */
 let toastTimer;
 function toast(msg) {
@@ -1280,6 +1333,10 @@ $('#pkMask').addEventListener('click', e => {
   const sel = $(`#${pkFor}Cat`); sel.selectedIndex = +b.dataset.i;
   syncPick(pkFor); sel.dispatchEvent(new Event('change')); closePick();
 });
+watchOverlays();
+sheetDrag($('#mask .sheet'), () => $('#fCancel').click());
+sheetDrag($('#rmask .sheet'), () => $('#rCancel').click());
+sheetDrag($('#pkMask .sheet'), () => closePick());
 wireMemoSuggest('f', '#fType'); wireMemoSuggest('r', '#rType');
 $('#srchBtn').onclick = openSearch;
 $('#sBack').onclick = closeSearch;
